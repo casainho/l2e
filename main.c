@@ -13,26 +13,46 @@
 #include "gpio.h"
 #include "adc.h"
 
-volatile unsigned int _ms10;
+static unsigned int _ms;
 
-void delay_ms10 (unsigned int ms10)
+void delay_ms (unsigned int ms)
 {
-  _ms10 = 1;
-  while (ms10 >= _ms10) ;
+  _ms = 1;
+  while (ms >= _ms) ;
 }
 
-void SysTick_Handler(void) // runs every 10ms
+void SysTick_Handler(void) // runs every 1ms
 {
+  static unsigned int c = 0;
+  static unsigned int timer_imu = 0;
 
+  // for delay_ms ()
+  _ms++;
+}
+
+void step (void)
+{
+  GPIO_SetBits (STEP_PORT, STEP_PIN);
+  delay_ms (2);
+  GPIO_ResetBits (STEP_PORT, STEP_PIN);
+  delay_ms (2);
+}
+
+void direction (unsigned int dir)
+{
+  if (dir == 0) GPIO_ResetBits (DIR_PORT, DIR_PIN);
+  else GPIO_SetBits (DIR_PORT, DIR_PIN);
+
+  delay_ms (2);
 }
 
 void initialize (void)
 {
   gpio_init ();
-  adc_init ();
+  //adc_init ();
 
-  /* Setup SysTick Timer for 10 millisecond interrupts, also enables Systick and Systick-Interrupt */
-  if (SysTick_Config(SystemCoreClock / 100))
+  /* Setup SysTick Timer for 1ms, also enables Systick and Systick-Interrupt */
+  if (SysTick_Config(SystemCoreClock / 1000))
   {
     /* Capture error */
     while (1);
@@ -43,9 +63,11 @@ int main (void)
 {
   initialize ();
 
-   while (1)
-  {
+  direction (1);
 
+  while (1)
+  {
+    step ();
   }
 
   // should never arrive here
