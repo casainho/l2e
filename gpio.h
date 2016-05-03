@@ -15,9 +15,11 @@
  * PB13 (GPIO)          -- STEP pin
  */
 
-#define DIR_PIN		GPIO_Pin_10
-#define DIR_PORT	GPIOB
-#define STEP_PIN	GPIO_Pin_13
-#define STEP_PORT	GPIOB
+#define DIR_PIN			GPIO_Pin_10
+#define DIR_PORT		GPIOB
+#define STEP_PIN		GPIO_Pin_13
+#define STEP_PORT		GPIOB
+#define POTENTIMETER_PIN	GPIO_Pin_0
+#define POTENTIMETER_PORT	GPIOA
 
 void gpio_init (void);
