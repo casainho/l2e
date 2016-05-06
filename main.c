@@ -15,8 +15,6 @@
 
 static int _ms = 0;
 
-unsigned int value;
-
 void delay_ms (int ms)
 {
   _ms = 1;
@@ -31,8 +29,12 @@ void SysTick_Handler(void) // runs every 1ms
 
 void step (void)
 {
+  // verify endstop
+//  if (!GPIO_ReadInputDataBit (ENDSTOP_PORT, ENDSTOP_PIN)) return;
+
+  // do the step
   GPIO_SetBits (STEP_PORT, STEP_PIN);
-  delay_ms (value);
+  delay_ms (0);
   GPIO_ResetBits (STEP_PORT, STEP_PIN);
   delay_ms (2);
 }
@@ -43,6 +45,21 @@ void direction (unsigned int dir)
   else GPIO_SetBits (DIR_PORT, DIR_PIN);
 
   delay_ms (2);
+}
+
+void calibration (void)
+{
+  direction (0);
+
+  // keep stepping while endstop if off
+  while (GPIO_ReadInputDataBit (ENDSTOP_PORT, ENDSTOP_PIN))
+  {
+    // do the step
+    GPIO_SetBits (STEP_PORT, STEP_PIN);
+    delay_ms (2);
+    GPIO_ResetBits (STEP_PORT, STEP_PIN);
+    delay_ms (2);
+  }
 }
 
 void initialize (void)
@@ -58,22 +75,68 @@ void initialize (void)
   }
 }
 
+// returns [0 <-> 1000]
+float get_potentiometer_value (void)
+{
+  static float x0 = 0, x1 = 0, x2 = 0, x3 = 0, x4 = 0;
+  float value = 0;
+
+  x0 = adc_get_potentiometer_value () / 4.097;
+  value = x0*0.2 + x1*0.2 + x2*0.2 + x3*0.2 + x4*0.2;
+  x4 = x3;
+  x3 = x2;
+  x2 = x1;
+  x1 = x0;
+
+  return value;
+}
+
 int main (void)
 {
-  //static unsigned int value;
+  static int position = 0;
+  static int target_position = 0;
+  static int delta_position = 0;
 
+  // initialize the system
   initialize ();
 
-  direction (1);
+  // initial calibration of the motor position
+  calibration ();
 
   while (1)
   {
 
-      value = (adc_get_potentiometer_value () >> 3);
+home:
+    // calc the new target position based on potentiometer value
+    target_position = (int) get_potentiometer_value ();
+    delta_position = target_position - position;
 
-    step ();
+    // define the motor direction
+    if (delta_position > 0)
+    {
+      direction (1);
+    }
+    else
+    {
+      direction (0);
+      delta_position *= -1;
+    }
+
+    // filtering
+    if (delta_position < 50)
+    {
+      delta_position = 0;
+      goto home;
+    }
+
+    // keep stepping until get on the target position
+    while (delta_position != 0)
+    {
+      // do the step
+      step ();
+      delta_position--;
+    }
+
+    position = target_position;
   }
-
-  // should never arrive here
-  return 0;
 }
