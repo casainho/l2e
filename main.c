@@ -14,6 +14,7 @@
 #include "adc.h"
 
 static int _ms = 0;
+static unsigned int direction = 0;
 
 void delay_ms (int ms)
 {
@@ -29,8 +30,8 @@ void SysTick_Handler(void) // runs every 1ms
 
 void step (void)
 {
-  // verify endstop
-//  if (!GPIO_ReadInputDataBit (ENDSTOP_PORT, ENDSTOP_PIN)) return;
+  // verify endstop and don't step if we hit the endstop and we are trying to go on the wrong direction
+  if ((direction == 1) && (!GPIO_ReadInputDataBit (ENDSTOP_PORT, ENDSTOP_PIN))) return;
 
   // do the step
   GPIO_SetBits (STEP_PORT, STEP_PIN);
@@ -39,17 +40,26 @@ void step (void)
   delay_ms (2);
 }
 
-void direction (unsigned int dir)
+void set_direction (unsigned int dir)
 {
-  if (dir == 0) GPIO_ResetBits (DIR_PORT, DIR_PIN);
-  else GPIO_SetBits (DIR_PORT, DIR_PIN);
+  if (dir == 0)
+  {
+    GPIO_ResetBits (DIR_PORT, DIR_PIN);
+    direction = 0;
+  }
+  else
+  {
+    GPIO_SetBits (DIR_PORT, DIR_PIN);
+    direction = 1;
+  }
 
   delay_ms (2);
 }
 
 void calibration (void)
 {
-  direction (0);
+  // set first the direction
+  GPIO_ResetBits (DIR_PORT, DIR_PIN);
 
   // keep stepping while endstop if off
   while (GPIO_ReadInputDataBit (ENDSTOP_PORT, ENDSTOP_PIN))
@@ -114,11 +124,11 @@ home:
     // define the motor direction
     if (delta_position > 0)
     {
-      direction (1);
+      set_direction (1);
     }
     else
     {
-      direction (0);
+      set_direction (0);
       delta_position *= -1;
     }
 
