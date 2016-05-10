@@ -59,16 +59,31 @@ void set_direction (unsigned int dir)
 void calibration (void)
 {
   // set first the direction
-  GPIO_ResetBits (DIR_PORT, DIR_PIN);
+  GPIO_SetBits (DIR_PORT, DIR_PIN);
 
   // keep stepping while endstop if off
   while (GPIO_ReadInputDataBit (ENDSTOP_PORT, ENDSTOP_PIN))
   {
     // do the step
     GPIO_SetBits (STEP_PORT, STEP_PIN);
+    delay_ms (0);
+    GPIO_ResetBits (STEP_PORT, STEP_PIN);
+    delay_ms (2);
+  }
+
+#define ZERO_POINT_STEPS 2
+  unsigned int steps = 0;
+
+  // go to zero point, by moving ZERO_POINT_STEPS
+  while (steps <= ZERO_POINT_STEPS)
+  {
+    // do the step
+    GPIO_SetBits (STEP_PORT, STEP_PIN);
     delay_ms (2);
     GPIO_ResetBits (STEP_PORT, STEP_PIN);
     delay_ms (2);
+
+    steps++;
   }
 }
 
@@ -88,15 +103,13 @@ void initialize (void)
 // returns [0 <-> 1000]
 float get_potentiometer_value (void)
 {
-  static float x0 = 0, x1 = 0, x2 = 0, x3 = 0, x4 = 0;
-  float value = 0;
+  float potentiomer_value = 0;
+  static float value = 0;
 
-  x0 = adc_get_potentiometer_value () / 4.097;
-  value = x0*0.2 + x1*0.2 + x2*0.2 + x3*0.2 + x4*0.2;
-  x4 = x3;
-  x3 = x2;
-  x2 = x1;
-  x1 = x0;
+  potentiomer_value = (float) (adc_get_potentiometer_value () * 1.7);
+
+  // IIR filter
+  value = value + (0.005 * (potentiomer_value - value));
 
   return value;
 }
@@ -115,8 +128,6 @@ int main (void)
 
   while (1)
   {
-
-home:
     // calc the new target position based on potentiometer value
     target_position = (int) get_potentiometer_value ();
     delta_position = target_position - position;
@@ -133,11 +144,7 @@ home:
     }
 
     // filtering
-    if (delta_position < 50)
-    {
-      delta_position = 0;
-      goto home;
-    }
+    if (delta_position < 175) continue;
 
     // keep stepping until get on the target position
     while (delta_position != 0)
